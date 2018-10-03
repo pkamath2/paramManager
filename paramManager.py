@@ -1,8 +1,9 @@
 import numpy as np
 
 import os  # for mkdir
-from os import listdir
+from os import listdir, remove
 from os.path import isfile, join
+from scipy.interpolate import interp1d
 
 import json
 
@@ -134,7 +135,9 @@ class paramManager() :
         filename_w_ext = os.path.basename(pfname)
         shortname, ext = os.path.splitext(filename_w_ext)
         with open(self.parampath + '/' + shortname + '.params') as fh:
-            return json.load(fh, object_hook=as_pdict)
+            params = json.load(fh, object_hook=as_pdict)
+        return params
+			
     
     def getFullPathNames(self, dir) :
         '''Returns a list of the full path names for all the data files in datapath.
@@ -160,10 +163,82 @@ class paramManager() :
         shortname, ext = os.path.splitext(filename_w_ext)
         
         params = self.getParams(pfname)
+        #enforce 2 values for each parameter
+        if len(times)<2 or len(values)<2:
+            raise ValueError("each parameter has to have at least 2 values corresponding to its start and end")
+			
         #add to the param data structure
         params.addParam(prop, times, values, units, nvals, minval, maxval)
         #save the modified structure to file
         with open(self.parampath + '/' + shortname + '.params' , 'w') as file:
                 file.write(json.dumps(params, cls=NumpyEncoder, indent=4)) # use `json.loads` to do the reverse
-                
-                
+				
+				
+    def resampleParam(self,params,prop,sr,timestart=None,timeend=None,verbose=False,overwrite=False):
+        '''resample the chosen parameter by linear interpolation (scipy's interp1d). 
+		Modifies the 'times' and 'values' entries but leaves others unchanged.
+		Can resample the parameter for a chunk of audio by specifying timestart and timeend. Note: does not chunk the actual audio file. 
+		Else the parameter will be resampled for the entire duration of the audio file.
+        
+		params - (loaded) json parameter file (output of getParams)
+        prop - name of the parameter
+        sr - new sampling rate i.e. len of new 'times' and 'values' list 
+        timestart - start time corresponding to the audio timestamp in seconds
+		timeend - end time corresponding to the audio timestamp in seconds
+		verbose - prints out parameter before and after
+        overwrite - overwrite the original parameter file with new values''' 
+        
+        #params = self.getParams(pfname)   #read existing parameter file into buffer
+        if timestart is None:
+            timestart = min(params[prop]['times'])
+        if timeend is None:
+            timeend = max(params[prop]['times'])
+        if verbose:			
+            print("--Data resampled from--")
+            print("times:",params[prop]['times'])
+            print("values:",params[prop]['values'])
+        
+        new_x = np.linspace(timestart, timeend, sr)
+        try:
+            new_y = interp1d(params[prop]['times'],params[prop]['values'],fill_value="extrapolate")(new_x)
+        except ValueError:
+            print(new_x,params[prop]['times'],params[prop]['values'])
+        if verbose:
+            print("--to--")
+            print("times:",new_x)
+            print("values:",new_y)
+        #units = params[prop]['units']
+        #nvals = params[prop]['nvals']
+        #minval = params[prop]['minval']
+        #maxval = params[prop]['maxval']
+
+        if overwrite:
+            params[prop]['times'] = new_x
+            params[prop]['values'] = new_y
+            filename_w_ext = params['meta']['filename']
+            shortname, ext = os.path.splitext(filename_w_ext)		
+
+            with open(self.parampath + '/' + shortname + '.params' , 'w') as file:
+                file.write(json.dumps(params, cls=NumpyEncoder, indent=4))
+				
+        return new_x,new_y
+
+    def resampleAllParams(self,params,sr,timestart=None,timeend=None,prop=None,verbose=False,overwrite=False):
+        '''resample multiple parameters in parameter file using resampleParam method.
+        prop contains the list of selected parameters. If None specified will default to all parameters (except meta).
+        Will always ignore meta parameter.'''
+        paramdict = {}
+        if prop is None:
+            prop = list(params.keys())
+        for entry in params:
+            if entry != 'meta' and entry in prop:
+                if verbose:
+                    print(entry)
+                    _,value = self.resampleParam(params,entry,sr,timestart,timeend,verbose,overwrite)
+                    print(' ')
+                else:
+                    _,value = self.resampleParam(params,entry,sr,timestart,timeend,verbose,overwrite)
+                paramdict[str(entry)] = value
+        return paramdict
+
+            
