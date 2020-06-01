@@ -36,7 +36,7 @@ class pdict(dict) :
         '''Adds arbitrary properties to the meta data'''
         self['meta'][prop]=value
         
-    def addParam(self, prop, times, values, units=None, nvals=0, minval=0, maxval=1) :
+    def addParam(self, prop, times, values, units=None, nvals=0, minval=0, maxval=1, origUnits=None, origMinval=None, origMaxval=None) :
         '''Creates a parameter dictionary entry.'''
         self[prop]={}
         self[prop]['times']=times
@@ -45,7 +45,10 @@ class pdict(dict) :
         self[prop]['nvals']=nvals
         self[prop]['minval']=minval
         self[prop]['maxval']=maxval
-        
+        self[prop]['origMinval']=origMinval
+        self[prop]['origUnits']=origUnits
+        self[prop]['origMaxval']=origMaxval
+       
 
 # parameter files are json 
 # Since only the dict gets json.dumped, we have to reconstruct when we load.
@@ -214,7 +217,7 @@ class paramManager() :
         return flist
                     
     # add a parameter to the data sturcture and write the parameter file
-    def addParam(self, pfname, prop, times, values, units=None, nvals=0, minval=0, maxval=1) :
+    def addParam(self, pfname, prop, times, values, units=None, nvals=0, minval=0, maxval=1, origUnits=None, origMinval=None, origMaxval=None) :
         ''' Adds parameter data to the param file corresponding to a data file.
         pfname - data file
         prop - name of the parameter
@@ -237,7 +240,7 @@ class paramManager() :
             raise ValueError("each parameter has to have at least 2 values corresponding to its start and end")
 			
         #add to the param data structure
-        params.addParam(prop, times, values, units, nvals, minval, maxval)
+        params.addParam(prop, times, values, units, nvals, minval, maxval, origUnits, origMinval, origMaxval)
         #save the modified structure to file
         with open(path + '.params' , 'w') as file:
                 file.write(json.dumps(params, cls=NumpyEncoder, indent=4)) # use `json.loads` to do the reverse
