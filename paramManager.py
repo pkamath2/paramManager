@@ -245,7 +245,25 @@ class paramManager() :
         with open(path + '.params' , 'w') as file:
                 file.write(json.dumps(params, cls=NumpyEncoder, indent=4)) # use `json.loads` to do the reverse
 
-	
+	# add more meta to the data sturcture and write the parameter file
+    def addMeta(self, pfname, name, value) :
+        ''' Adds additional meta data to the param file corresponding to a data file.
+        pfname - data file
+        name - Meta name
+        value - Meta value 
+        '''
+        if os.path.isdir(self.datapath):
+            structure = os.path.join(self.parampath, os.path.relpath(pfname, self.datapath))
+            path, ext = os.path.splitext(structure)
+        else:
+            path = self.parampath + '/' + self.shortname
+        
+        params = self.getParams(pfname)
+        params.addMeta(name, value)
+        # save the modified structure to file
+        with open(path + '.params' , 'w') as file:
+            file.write(json.dumps(params, cls=NumpyEncoder, indent=4)) # use `json.loads` to do the reverse
+    
     @staticmethod			
     def resample(paramvect,original_sr,resampling_sr,axis=1):
         '''resample the chosen parameter by linear interpolation (scipy's interp1d). 
